@@ -2,16 +2,15 @@ package com.example.sock.handler;
 
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.async.ResultCallback;
-import com.github.dockerjava.api.command.AttachContainerCmd;
 import com.github.dockerjava.api.model.Frame;
-import org.apache.hc.core5.http.nio.support.TerminalAsyncServerFilter;
+import java.nio.charset.StandardCharsets;
+import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
-import javax.print.attribute.HashAttributeSet;
 import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
@@ -20,19 +19,18 @@ import java.util.Map;
 public class TerminalHandler extends TextWebSocketHandler {
     @Autowired
     DockerClient client;
-    Map<String, ResultCallback<Frame>> callbackMap = new HashMap<>();
-    Map<String, InputStream> inputStreamMap = new HashMap<>();
-    Map<String, OutputStream> outputStreamMap = new HashMap<>();
+    Map<String, TerminalCallback> callbackMap = new HashMap<>();
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
-        OutputStream pos = outputStreamMap.get(session.getId());
-        InputStream pis = inputStreamMap.get(session.getId());
-        pos.write(message.asBytes());
-        pos.flush();
-        Thread.sleep(100);
-        var msg = new TextMessage(pis.readNBytes(4096));
-        session.sendMessage(msg);
+        TerminalCallback term = callbackMap.get(session.getId());
+
+        term.sendInput(new String(message.asBytes()).replace("\r\n", "\n").getBytes());
+
+        String result = term.recvResult();
+        if (result != null) {
+            session.sendMessage(new TextMessage(result));
+        }
     }
 
     @Override
@@ -40,28 +38,34 @@ public class TerminalHandler extends TextWebSocketHandler {
         var container = client.createContainerCmd("ubuntu")
                 .withStdinOpen(true)
                 .exec();
-        PipedInputStream pis = new PipedInputStream();
-        PipedOutputStream pos = new PipedOutputStream(pis);
-        TerminalCallback cb = new TerminalCallback(pos);
 
-        inputStreamMap.put(session.getId(), pis);
-        outputStreamMap.put(session.getId(), pos);
+        TerminalCallback cb = new TerminalCallback();
+
         callbackMap.put(session.getId(), cb);
 
         client.startContainerCmd(container.getId()).exec();
 
         client.attachContainerCmd(container.getId())
                 .withFollowStream(true)
-                .withStdIn(pis)
+                .withStdIn(cb.getStdinInputStream())
                 .withStdOut(true)
                 .withStdErr(true)
                 .exec(cb);
     }
 
     public static class TerminalCallback implements ResultCallback<Frame> {
-        OutputStream os;
-        TerminalCallback(OutputStream outputStream) {
-            this.os = outputStream;
+        @Getter
+        PipedInputStream stdinInputStream;
+        PipedOutputStream stdinOutputStream;
+
+        PipedInputStream stdoutInputStream;
+        PipedOutputStream stdoutOutputStream;
+        TerminalCallback() throws IOException {
+            this.stdinOutputStream = new PipedOutputStream();
+            this.stdinInputStream = new PipedInputStream(this.stdinOutputStream);
+
+            this.stdoutOutputStream = new PipedOutputStream();
+            this.stdoutInputStream = new PipedInputStream(this.stdoutOutputStream);
         }
         @Override
         public void onStart(Closeable closeable) {
@@ -70,7 +74,12 @@ public class TerminalHandler extends TextWebSocketHandler {
 
         @Override
         public void onNext(Frame object) {
-            System.out.println("on next");
+            try {
+                stdoutOutputStream.write(object.getPayload());
+                stdoutOutputStream.flush();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override
@@ -86,6 +95,24 @@ public class TerminalHandler extends TextWebSocketHandler {
         @Override
         public void close() throws IOException {
             System.out.println("on close");
+        }
+
+        public void sendInput(byte[] message) throws IOException{
+            stdinOutputStream.write(message);
+            stdinOutputStream.flush();
+        }
+
+        public String recvResult() throws IOException {
+            byte[] buf = new byte[4096];
+            StringBuilder sb = new StringBuilder();
+            while (true) {
+                int rdBytes = stdoutInputStream.read(buf, 0, stdoutInputStream.available());
+                if (rdBytes == -1) break;
+                sb.append(new String(buf, 0, rdBytes, StandardCharsets.UTF_8));
+                if (rdBytes < 4096) break;
+            }
+            if (sb.length() == 0) return null;
+            return sb.toString();
         }
     }
 }
