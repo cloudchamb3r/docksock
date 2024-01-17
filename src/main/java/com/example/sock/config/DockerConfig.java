@@ -15,7 +15,6 @@ public class DockerConfig {
     DockerClientConfig dockerClientConfig() {
         return DefaultDockerClientConfig.createDefaultConfigBuilder()
                 .withDockerHost("tcp://127.0.0.1:2375")
-                .withDockerTlsVerify(false)
                 .build();
     }
 

@@ -1,26 +1,18 @@
 package com.example.sock.config;
 
 import com.example.sock.handler.TerminalHandler;
-import org.springframework.context.annotation.Bean;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.messaging.simp.config.MessageBrokerRegistry;
-import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.config.annotation.*;
 
 @Configuration
 @EnableWebSocket
+@RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketConfigurer {
-
+    private final TerminalHandler terminalHandler;
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(TerminalHandler(), "/terminal");
+        registry.addHandler(terminalHandler, "/terminal");
     }
-
-    @Bean
-    public WebSocketHandler TerminalHandler() {
-        return new TerminalHandler();
-    }
-
 }
 
