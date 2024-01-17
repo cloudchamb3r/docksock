@@ -24,6 +24,7 @@ public class TerminalHandler extends TextWebSocketHandler {
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         var container = client.createContainerCmd("ubuntu")
                 .withStdinOpen(true)
+                .withTty(true)
                 .exec();
 
         TerminalCallback cb = new TerminalCallback(session);

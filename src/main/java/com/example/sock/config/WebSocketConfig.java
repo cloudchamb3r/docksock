@@ -12,7 +12,8 @@ public class WebSocketConfig implements WebSocketConfigurer {
     private final TerminalHandler terminalHandler;
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(terminalHandler, "/terminal");
+        registry.addHandler(terminalHandler, "/terminal")
+                .setAllowedOrigins("http://192.168.0.44:5173");
     }
 }
 
