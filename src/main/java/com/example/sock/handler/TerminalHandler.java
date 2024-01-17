@@ -56,5 +56,8 @@ public class TerminalHandler extends TextWebSocketHandler {
         client.stopContainerCmd(containerId).exec();
         client.waitContainerCmd(containerId).exec(new WaitContainerResultCallback());
         client.removeContainerCmd(containerId).exec();
+
+        callbackMap.remove(session.getId()).close();
+        containerIdMap.remove(session.getId());
     }
 }
