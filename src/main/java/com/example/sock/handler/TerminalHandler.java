@@ -22,7 +22,7 @@ public class TerminalHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-        var container = client.createContainerCmd("ubuntu")
+        var container = client.createContainerCmd("workspace")
                 .withStdinOpen(true)
                 .withTty(true)
                 .exec();

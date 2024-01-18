@@ -10,11 +10,8 @@ import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.LinkedList;
-import java.util.Queue;
 
 public class TerminalCallback extends ResultCallback.Adapter<Frame> {
-
     @Getter
     PipedInputStream stdinInputStream;
     PipedOutputStream stdinOutputStream;
@@ -52,7 +49,9 @@ public class TerminalCallback extends ResultCallback.Adapter<Frame> {
             if (sb.isEmpty()) return;
             boundSession.sendMessage(new TextMessage(sb.toString()));
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            try {
+                boundSession.close();
+            } catch (Exception ignored) {}
         }
     }
 
